@@ -23,90 +23,171 @@
 */
 (function(window){
 
+	/**
+	 * Represents a stock calculator.
+
+	 * @constructor
+	 * @class
+	 * @param {broker} broker - The stock broker to use.
+	 */
 	var StockCalculator = window.StockCalculator = function StockCalculator(broker) {
+		if ( !broker ) {
+			throw "Broker must be specified."
+		}
+
 		this.broker = broker;
-		this.math = mathjs({
-			number: 'bignumber', 
-			decimals: 20 
-		}); 
+		this.math = math.create({
+			number: 'bignumber'
+			// TODO: Add options for precision.
+		  // precision: options && options.calcPrecision != null ? options.calcPrecision : 64
+		});
 	}
 
-	StockCalculator.prototype.toNumber = function (value) {
-		return this.math.bignumber(value);
-	};
-
-	StockCalculator.prototype.getMath = function () {
-		return this.math;
-	};
-
+	/** 
+	 * Gets the stock broker being used by the calculator.
+   *
+	 * @function getBroker 
+	 *
+	 * @return the broker instance.
+	 */
 	StockCalculator.prototype.getBroker = function () {
 		return this.broker;
 	};
 
-	StockCalculator.prototype.calcGrossTradeAmt = function (numOfShares, price) {
-		return this.math.select(numOfShares).multiply(price).done();
+	/** 
+   * Computes for the gain or loss of a stock market transaction provided the parameters below.
+	 *
+	 * @function compute
+	 *
+	 * @param numOfShares -
+	 * 					the number of shares involved in the transaction.
+	 * @param buyPrice -
+	 * 					the price per share upon buying the stock.
+	 * @param sellPrice -
+	 * 					the price per share upon selling the stock.
+	 * @param mustAddDetails -
+	 * 					[optional] determines if transaction fees breakdown will be included or not.
+	 * @return an Object containing the following details: gain, gainPercent, actualBuy, actualSell, and etcetera.
+	 */
+	StockCalculator.prototype.compute = function compute(numOfShares, buyPrice, sellPrice, mustAddDetails) {
+    // Local variables.
+    var lMath = this.math;
+    var lNumOfShares = toBigNumber(numOfShares);
+
+    // Buy
+    var lBuyPrice = toBigNumber(buyPrice);
+    var grossBuyAmount = computeGrossAmount(lNumOfShares, lBuyPrice);
+    var buyFees = populateFees.call(this, this.broker.getBuyFees(), grossBuyAmount);
+    var totalBuyFees = sumArrayValues.call(this, buyFees);
+    var netBuyAmount = this.math.chain(grossBuyAmount).add(totalBuyFees).done();
+
+    // Sell
+    var lSellPrice = toBigNumber(sellPrice);
+    var grossSellAmount =  computeGrossAmount(lNumOfShares, lSellPrice)
+    var sellFees = populateFees.call(this, this.broker.getSellFees(), grossSellAmount);
+    var totalSellFees = sumArrayValues.call(this, sellFees);
+    var netSellAmount = this.math.chain(grossSellAmount).subtract(totalSellFees).done();
+
+    // Transaction Details
+    var result = {
+      gain: computeGain.call(this, netSellAmount, netBuyAmount),
+      gainPercent: computeGainPercent.call(this, netSellAmount, netBuyAmount),
+      actualBuy: computeActualBuy.call(this, netBuyAmount, lNumOfShares),
+      actualSell: computeActualSell.call(this, netSellAmount, lNumOfShares)
+    };
+
+    // Transaction Fees Breakdown
+    // May skip the inclusion of fees breakdown to lessen overhead.
+    if ( mustAddDetails ) {
+    	result.details = {
+        buy : {
+          grossTradeAmt: lMath.number(grossBuyAmount),
+          fees: convertArrayBigNumberValuesToNumber.call(this, buyFees),
+          netTradeAmt: lMath.number(netBuyAmount)
+        },
+        sell : {
+          grossTradeAmt: lMath.number(grossSellAmount),
+          fees: convertArrayBigNumberValuesToNumber.call(this, sellFees),
+          netTradeAmt: lMath.number(netSellAmount)
+        }
+      };
+    }
+
+    // Return the computation result.
+    return result;
+
+  };
+
+  /**
+   *
+   * Gross Amount = No. of Shares * Price per share
+   *
+   */
+  function computeGrossAmount(numOfShares, price) {
+		return this.math.chain(numOfShares).multiply(price).done();
 	};
 
-	StockCalculator.prototype.populate = function (numOfShares, buyPrice, sellPrice) {
-		var grossBuyAmount = this.calcGrossTradeAmt(numOfShares, buyPrice);
-		var grossSellAmount =  this.calcGrossTradeAmt(numOfShares, sellPrice)
-		var buyFees = populateFees.call(this, this.broker.getFeesForType(FeeType.BUY), grossBuyAmount);
-		var sellFees = populateFees.call(this, this.broker.getFeesForType(FeeType.SELL), grossSellAmount);
-		var netBuyAmount = this.math.select(grossBuyAmount).add(sumArrayValues.call(this, buyFees)).done();
-		var netSellAmount = this.math.select(grossSellAmount).subtract(sumArrayValues.call(this, sellFees)).done();
-
-
-		var allFees = {
-			profit: this.math.select(netSellAmount).subtract(netBuyAmount).done(),
-			gainPercent: this.math.select(netSellAmount).divide(netBuyAmount).multiply(100).subtract(100).done(),
-			actualBuy: this.math.select(netBuyAmount).divide(numOfShares).done(),
-			actualSell: this.math.select(netSellAmount).divide(numOfShares).done(),
-			detailsBuy : {
-					feeType: FeeType.BUY,
-					grossTradeAmt: grossBuyAmount,
-					fees: buyFees,
-					netTradeAmt: netBuyAmount
-				},
-			detailsSell : {
-					feeType: FeeType.SELL,
-					grossTradeAmt: grossSellAmount,
-					fees: sellFees,
-					netTradeAmt: netSellAmount
-				},
-			summary: [
-				{
-					feeType: FeeType.BUY,
-					grossTradeAmt: grossBuyAmount,
-					fees: buyFees,
-					netTradeAmt: netBuyAmount
-				},
-				{
-					feeType: FeeType.SELL,
-					grossTradeAmt: grossSellAmount,
-					fees: sellFees,
-					netTradeAmt: netSellAmount
-				}
-			]
-		};
-
-		return allFees;
+	/**
+   *
+   * Gain = Net Sell Amount - Net Buy Amount
+   *
+   */
+	function computeGain(netSellAmount, netBuyAmount) {
+		var lMath = this.math;
+		return lMath.number(lMath.chain(netSellAmount).subtract(netBuyAmount).done());
 	};
 
-	function populateFeesByType(feeType, numOfShares, price) {	
-		var grossTradeAmt = this.calcGrossTradeAmt(numOfShares, price);
-		var fees = populateFees.call(this, this.broker.getFeesForType(feeType), grossTradeAmt);
-		var sumBuyFees = sumArrayValues.call(this, buyFees);
+	/**
+   *
+   * Gain(%) =  Net Sell Amount / Net Buy Amount * 100 - 100
+   *
+   */
+	function computeGainPercent(netSellAmount, netBuyAmount) {
+		var lMath = this.math;
+		return lMath.number(lMath.chain(netSellAmount).divide(netBuyAmount).multiply(100).subtract(100).done());
+	};
 
-		retur 
-	}
+	/**
+   *
+   * Actual Buy Amount = Net Buy Amount / No. of Shares
+   *
+   */
+	function computeActualBuy(netBuyAmount, numOfShares) {
+		var lMath = this.math;
+		return lMath.number(lMath.chain(netBuyAmount).divide(numOfShares).done());
+	};
 
+	/**
+   *
+   * Actual Sell Amount = Net Sell Amount / No. of Shares
+   *
+   */
+	function computeActualSell(netSellAmount, numOfShares) {
+		var lMath = this.math;
+		return lMath.number(lMath.chain(netSellAmount).divide(numOfShares).done());
+	};
+
+	/**
+   * Function responsible for calculating all the fees of the stock
+   * transaction which is dependent on the stock broker. This function is the
+   * important part for integrating the stock calculator and the stock broker
+   * instances.
+   *
+   * @param fees -
+	 * 				  the array of fees from the stock broker.
+   * @param grossTradeAmt -
+	 * 				  the gross amount of the trade transaction.
+   * @return an array of object containing the actual amount of a transaction fee.
+   *
+   */
 	function populateFees(fees, grossTradeAmt) {
 		var scope = {grossTradeAmt:grossTradeAmt};
 		var calcFees = [];
 		
 		for (var i = 0; i < fees.length; i++) {
-			var fee = fees[i];			
-			var value = this.math.eval(fee.handler(), scope) ;
+			var fee = fees[i];
+			// Use the eval method of math.js to calculate an equation given a scope.
+			var value = this.math.eval(fee.handler(), scope);
 			scope[fee.name] = value;
 			calcFees.push({name: fee.name, descrip: fee.descrip, value: value});
 		}
@@ -114,10 +195,21 @@
 		return calcFees;
 	}
 
+	/**
+   * Function responsible for summing all the entries of an Array given
+   * a key parameter. This is used for adding all the transaction fees up.
+   *
+   * @param arrObj -
+	 * 				  the array of objects to be interated.
+   * @param aKey -
+	 * 				  the key inside an Object to be used for summation.
+   * @return the sum, in bigNumber, of all the entries inside the array.
+   */
 	function sumArrayValues(arrObj, aKey) {
+		// Default key is value.
 		var key = aKey || 'value';
 
-		var sumValue = this.math.select(0);
+		var sumValue = this.math.chain(0);
 
 		for (var i = 0; i < arrObj.length; i++) {
 			var feeObj = arrObj[i];
@@ -125,6 +217,38 @@
 		}
 
 		return sumValue.done();
+	}
+
+	/**
+   * Function responsible for converting all the entries of an Array given
+   * a key parameter. This is used for converting the BigNumber values to Number.
+   *
+   * @param arrObj -
+	 * 				  the array of objects to be interated.
+   * @param aKey -
+	 * 				  the key inside an Object to be used for summation.
+   * @return the same array instance which has already been manipulated.
+   */
+	function convertArrayBigNumberValuesToNumber(arrObj, aKey) {
+		var key = aKey || 'value';
+
+		for (var i = 0; i < arrObj.length; i++) {
+			var feeObj = arrObj[i];
+			feeObj[key] = this.math.number(feeObj[key]);
+		}
+
+		return arrObj;
+	}
+
+	/**
+   * Function for converting a Number to BigNumber.
+   *
+   * @param value -
+   * 					the value to be converted.
+   * @return the converted value as BigNumber.
+   */
+	function toBigNumber(value) {
+		return this.math.bignumber(value || 0);
 	}
 
 })(window);

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>QUnit Example</title>
+  <link rel="stylesheet" href="http://code.jquery.com/qunit/qunit-1.18.0.css">
+</head>
+<body>
+  <div id="qunit"></div>
+  <div id="qunit-fixture"></div>
+  <!-- CDN -->
+  <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
+  <script src="http://code.jquery.com/qunit/qunit-1.18.0.js"></script>
+  <script src="http://cdnjs.cloudflare.com/ajax/libs/mathjs/1.6.0/math.min.js"></script>
+
+  <!-- No CDN -->
+  <script src="../../vendors/qunit-assert-close/qunit-assert-close.js"></script>
+  
+  <!-- Libraries to be tested -->
+  <script src="../js/broker.js"></script>
+  <script src="../js/brokers/broker-col.js"></script>
+  <script src="../js/stock.calculator.js"></script>
+
+  <!-- Test Suites -->
+  <script src="../js/test/tests.js"></script>
+</body>
+</html>

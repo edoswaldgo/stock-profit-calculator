@@ -23,6 +23,9 @@
 */
 (function(window){
 
+	/**
+	 * Constants for type of transaction fee.
+	 */
 	var FeeType = {
 		DEP : "DEP",
 		BUY : "BUY",
@@ -30,25 +33,69 @@
 		DIV : "DIV",
 	}
 
+	/**
+	 * Represents a stock broker.
+   *
+	 * @constructor
+	 * @class
+	 * @param {string} name - The name of the stock broker.
+	 */
 	function Broker(name) {
 		this.name = name;
 		this.feeMap = {};
 	}
 
+	/** 
+	 * Gets the name of the stock broker.
+   *
+	 * @function getName
+	 *
+	 * @return the name of the stock broker.
+	 */
 	Broker.prototype.getName = function getName() {
 		return this.name;
 	};
 
+	/** 
+	 * Adds a fee for buy transactions.
+   *
+	 * @function addBuyFee
+	 * @param feeObj - 
+	 * 					the fee object containing the name, description, and 
+	 * 					the fee handler.
+	 *
+	 * @return the same stock broker instance for chaining.
+	 */
 	Broker.prototype.addBuyFee = function (feeObj) {
 		this.addFee(feeObj, FeeType.BUY);
 		return this;
 	};
 
+	/** 
+	 * Adds a fee for sell transactions.
+   *
+	 * @function addSellFee
+	 * @param feeObj - 
+	 * 					the fee object containing the name, description, and 
+	 * 					the fee handler.
+	 *
+	 * @return the same stock broker instance for chaining.
+	 */
 	Broker.prototype.addSellFee = function (feeObj) {
 		this.addFee(feeObj, FeeType.SELL);
 		return this;
 	};
 
+	/** 
+	 * Adds a transaction fee.
+   *
+	 * @function addFee
+	 * @param feeObj - 
+	 * 					the fee object containing the name, description, and 
+	 * 					the fee handler.
+	 *
+	 * @return the same stock broker instance for chaining.
+	 */
 	Broker.prototype.addFee = function (feeObj) {
 		var args = arguments;
 		if ( args.length < 2) { alert('Must provide two parameters or more'); return; }
@@ -63,14 +110,53 @@
 		return this;
 	};
 
+	/** 
+	 * Gets all the transaction fees of the stock broker.
+   *
+	 * @function getFees
+	 *
+	 * @return the map of transaction fees.
+	 */
 	Broker.prototype.getFees = function () {
 		return this.feeMap;
 	};
 
+	/** 
+	 * Gets the transaction fees for a specific transaction type.
+   *
+	 * @function getFeesForType
+	 * @param feeType -
+	 *				  the type of transaction fee. i.e. buy, sell.
+	 *
+	 * @return the array of transaction fees for a specific type.
+	 */
 	Broker.prototype.getFeesForType = function (feeType) {
 		return this.feeMap[feeType];
 	};
 
+	/** 
+	 * Gets the transaction fees for buy transactions.
+   *
+	 * @function getBuyFees
+	 *
+	 * @return the array of fees for buy transactions.
+	 */
+	Broker.prototype.getBuyFees = function () {
+		return this.feeMap[FeeType.BUY];
+	};
+
+	/** 
+	 * Gets the transaction fees for sell transactions.
+   *
+	 * @function getSellFees
+	 *
+	 * @return the array of fees for sell transactions.
+	 */
+	Broker.prototype.getSellFees = function () {
+		return this.feeMap[FeeType.SELL];
+	};
+
+	// Expose to public.
 	window.Broker = Broker;
 	window.FeeType = FeeType;
 
